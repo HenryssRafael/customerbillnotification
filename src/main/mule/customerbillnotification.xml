@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:spring="http://www.mulesoft.org/schema/mule/spring"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:jms="http://www.mulesoft.org/schema/mule/jms"
+	xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties"
+	xmlns:twitter="http://www.mulesoft.org/schema/mule/twitter"
+	xmlns:core="http://www.mulesoft.org/schema/mule/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/twitter http://www.mulesoft.org/schema/mule/twitter/current/mule-twitter.xsd
+http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/spring http://www.mulesoft.org/schema/mule/spring/current/mule-spring.xsd">
+	<global-property doc:name="Global Property"
+		doc:id="8faf54f2-224d-4f3f-b1ae-033e9a318f69" name="env" value="prod" />
+
+	<configuration doc:name="Configuration">
+		<expression-language>
+			<global-functions>
+				def toUUID() {
+				return java.util.UUID.randomUUID().toString()
+				}
+			</global-functions>
+		</expression-language>
+	</configuration>
+
+	<configuration-properties
+		doc:name="Configuration properties"
+		doc:id="1c105247-e089-4c8b-9ed6-e662a9c967d4"
+		file="${env}-settings.properties" />
+
+	<secure-properties:config
+		name="Secure_Properties_Config" doc:name="Secure Properties Config"
+		doc:id="d1a70206-62e1-4d93-8dd0-0d8bb7ad68c5"
+		file="${env}-settings.properties" key="henry">
+		<secure-properties:encrypt
+			algorithm="Blowfish" />
+	</secure-properties:config>
+
+	<http:listener-config name="HTTP_Listener_config"
+		doc:name="HTTP Listener config"
+		doc:id="0001eec3-7c52-4d0a-8269-e98726d6de30" basePath="core/1">
+		<http:listener-connection host="0.0.0.0"
+			port="${app.port}" />
+	</http:listener-config>
+	<twitter:config name="Twitter_Config"
+		doc:name="Twitter Config"
+		doc:id="e4928b8c-4f87-4f72-b0c8-64c0a5c7ee1d"
+		consumerKey="${secure::twitter.consumer.key}"
+		consumerSecret="${secure::twitter.consumer.secret}"
+		accessToken="${secure::twitter.token.key}"
+		accessTokenSecret="${secure::twitter.token.secret}"
+		apiUrl="https://api.twitter.com" apiVersion="1.1">
+	</twitter:config>
+
+
+
+	<jms:config name="JMS_Config" doc:name="JMS Config"
+		doc:id="6c6ac2f4-5b90-4224-950a-ec633b2540db">
+		<jms:active-mq-connection username="${secure::app.activemq.password}"
+			password="${app.activemq.user}">
+			<jms:factory-configuration
+				brokerUrl="${app.activemq.brokerurl}" />
+		</jms:active-mq-connection>
+	</jms:config>
+	<db:config name="Database_Config" doc:name="Database Config"
+		doc:id="ad98dcb8-a861-445b-88d3-c895ba1fd5b5">
+		<db:my-sql-connection host="${app.database.host}"
+			port="${app.database.port}" user="${app.database.user}" password="${secure::app.database.password}" database="${app.database.name}" />
+	</db:config>
+	<spring:config name="Spring_Config"
+		doc:name="Spring Config" doc:id="432e69f4-8ede-4744-9ca4-bca5fd4ce35b"
+		files="AccessSecure.xml" />
+	<spring:security-manager doc:name="Spring Security manager" doc:id="159a6e56-cff3-49db-ac28-95f1af759b2f" >
+		<spring:delegate-security-provider name="security-provider" delegate-ref="authenticationManager" />
+	</spring:security-manager>
+	<flow name="NotifierFlow"
+		doc:id="e64ceb4e-4e27-49b5-8e92-90f618f80ec3">
+		<http:listener doc:name="Notifier"
+			doc:id="9546d75d-7309-4047-b79c-9e48a8451e7b"
+			config-ref="HTTP_Listener_config" path="notifier" allowedMethods="POST"/>
+		<http:basic-security-filter doc:name="Basic security filter" doc:id="41f66104-3ada-4b86-9e60-a4ee5f98f41b" realm="mule"/>
+		<spring:authorization-filter doc:name="Authorization filter" doc:id="267dc9a7-1cfe-4bbe-b282-9d21be3040f8" requiredAuthorities="ROLE_ADMIN"/>
+		<set-variable doc:name="uuid" doc:id="32abe567-13dc-4131-8523-aa7718d401cb" variableName="uuid" value="#[uuid()]"/>
+		<ee:transform doc:name="Transform Message" doc:id="04784fa4-c58d-4d16-8eec-abd5863d01a0" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"recipientId": payload.recipientId,
+	"message": payload.message,
+	"uuid": vars.uuid
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="650eb08e-cad4-45a4-9377-991475073d4f" message='#[payload]' />
+		<jms:publish doc:name="Publish" doc:id="c3c4233e-35b2-4aaf-8bc7-3748ce6c63e6" config-ref="JMS_Config" destination="in.audit.notification">
+		</jms:publish>
+		<twitter:direct-message
+			doc:name="Direct message"
+			doc:id="d87aab4f-76c1-4df1-8d9b-c94bd3125f24"
+			config-ref="Twitter_Config" message="#[payload.message]"
+			recipientId="#[payload.recipientId]" />
+		<ee:transform doc:name="Transform Message" doc:id="05e73f88-b0bd-4021-bfb1-2bf156b55866" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "recipientId":payload.recipientId,
+    "message":payload.message,
+    "successful":payload.successful,
+    "uuid":vars.uuid
+}
+]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<jms:publish doc:name="Publish" doc:id="d1446742-c6ce-40dc-b4e4-6eb626244663" destination="out.audit.notification" config-ref="JMS_Config"/>
+		<logger level="INFO" doc:name="Logger" doc:id="5cb30ee9-b4fb-4f65-8672-69599d02fcc9" message="#[payload]" />
+	</flow>
+
+	<flow name="customerbillnotificationFlow" doc:id="b351425d-f213-4f47-8fdc-7707ce60dd1b" >
+		<jms:listener doc:name="On New Message" doc:id="90aad796-20a9-472c-ae98-6e21ab58ca88" config-ref="JMS_Config" destination="in.audit.notification">
+			<jms:consumer-type >
+				<jms:queue-consumer />
+			</jms:consumer-type>
+		</jms:listener>
+		<db:insert doc:name="Insert" doc:id="6d8072c7-1857-42bf-906a-d62e01d2771d" config-ref="Database_Config">
+			<db:sql ><![CDATA[insert into audit(createdDate,updatedDate,message,recipientId,successful,uuid)
+values(SYSDATE(),SYSDATE(),:message,:recipientId,false,:uuid)]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{recipientId: payload.recipientId,
+	message:payload.message,
+	uuid:payload.uuid
+}]]]></db:input-parameters>
+		</db:insert>
+		<logger level="INFO" doc:name="Logger" doc:id="a2e44441-d7aa-4625-bbad-af30d2880307" message="Incio de envio de mensaje"/>
+	</flow>
+
+	<flow name="AuditResponse" doc:id="beea6439-8fff-4294-adea-8945af6049a9" >
+		<jms:listener doc:name="On Response Twitter Message" doc:id="7796c8c4-8bec-4928-9d4c-0c62097a3ecf" config-ref="JMS_Config" destination="out.audit.notification">
+			<jms:consumer-type >
+				<jms:queue-consumer />
+			</jms:consumer-type>
+		</jms:listener>
+		<db:update doc:name="Update" doc:id="680c4b30-1549-45db-b41d-e3aad09b61ab" config-ref="Database_Config">
+			<db:sql ><![CDATA[update audit set updatedDate=SYSDATE(), successful=:successful, message=:message
+where uuid=:uuid ]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{recipientId: payload.recipientId,
+	message:payload.message,
+	successful:payload.successful,
+	uuid:payload.uuid
+}]]]></db:input-parameters>
+		</db:update>
+		<logger level="INFO" doc:name="Logger" doc:id="824542e5-2dc5-46db-9d92-2098e406ce0c" message="fin envio de mensaje"/>
+	</flow>
+
+</mule>
