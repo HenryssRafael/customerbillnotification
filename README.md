@@ -48,7 +48,7 @@ CREATE TABLE audit (
 
 ### Installing
 
-First download own custom Extension [**Twitter Extension**](sdfsdf) 
+First download own custom Extension [**Twitter Extension**](https://github.com/HenryssRafael/customerbillnotification) 
 
 1. Access the folder location for  Twitter Extension and execute installing
 
