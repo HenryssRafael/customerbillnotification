@@ -61,7 +61,7 @@ mvn install
 * ***POST*** Deploy the application, and send the request ***POST***
 http://localhost:8081/core/1/notifier Authentication is required
 
-*Know user id twwiter
+* Know user id twitter
 https://tweeterid.com/
 
 
